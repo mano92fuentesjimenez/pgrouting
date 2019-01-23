@@ -69,19 +69,18 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_insert_key"(
   STRICT
 AS
 $function$
-SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
-FROM (SELECT *
-      FROM jsonb_each("jsonb")
-      WHERE "key" <> "key_to_set"
-      UNION ALL
-      SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
-                              when 'array' then to_json(
-                                  array_append(
-                                      string_to_array(
-                                          regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
-                                        ,',','')
-                                    , "value_to_set"#>>'{}'))::jsonb
-                              else "value_to_set" end )  AS "fields"
+SELECT case jsonb_typeof("jsonb"-> key_to_set)
+       when 'object' then
+         (select concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
+          FROM (SELECT *
+                FROM jsonb_each("jsonb")
+                WHERE "key" <> "key_to_set"
+                UNION ALL
+                SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
+               )
+       when 'array' then
+         (SELECT concat('[',regexp_replace("jsonb" ->> key_to_set, '[\[\]]', '', 'g'),"value_to_set" #>> '{}',']')::jsonb)
+       end
 $function$;
 
 CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_insert_path"(
@@ -606,9 +605,12 @@ create or REPLACE function pgr_createtopology_multimodal (p_lineal_groups text, 
     for v_layer_name, v_group in EXECUTE p_lineal_groups loop
       if v_lineal_groups->v_group is null then
         v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,('{'||v_group||'}')::text[],'[]'::jsonb);
+        raise notice 'here';
       end if;
 
+        raise notice 'here,%', v_lineal_groups;
       v_lineal_groups = pgr_polyfill_jsonb_insert(v_lineal_groups,('{'||v_group||'}')::text[],('"'||v_layer_name||'"')::jsonb);
+      raise notice 'here2';
     end loop;
 
     for v_point_name, v_layer_name in EXECUTE p_puntual_groups loop
