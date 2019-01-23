@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_set_path"(
   "jsonb"          jsonb,
   "key_path"      TEXT[],
-  "value_to_set"  anyelement
+  "value_to_set"  jsonb
 )
   RETURNS jsonb
   LANGUAGE sql
@@ -10,7 +10,7 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_set_path"(
     AS
     $function$
       SELECT CASE COALESCE(array_length("key_path", 1), 0)
-         WHEN 0 THEN to_json("value_to_set")::jsonb
+         WHEN 0 THEN "value_to_set"
          WHEN 1 THEN "pgr_polyfill_jsonb_object_set_key"("jsonb", "key_path"[l], "value_to_set")
          ELSE "pgr_polyfill_jsonb_object_set_key"(
              "jsonb",
@@ -29,7 +29,7 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_set_path"(
 CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_set_key"(
   "jsonb"          jsonb,
   "key_to_set"    TEXT,
-  "value_to_set"  anyelement
+  "value_to_set"  jsonb
 )
   RETURNS jsonb
   LANGUAGE sql
@@ -42,7 +42,14 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_set_key"(
           FROM jsonb_each("jsonb")
           WHERE "key" <> "key_to_set"
           UNION ALL
-          SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
+          SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
+                                  when 'array' then to_json(
+                                    array_append(
+                                      string_to_array(
+                                        regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
+                                        ,',','')
+                                      , "value_to_set"#>>'{}'))::jsonb
+                                  else "value_to_set" end )  AS "fields"
   $function$;
 
 create or REPLACE FUNCTION pgr_polyfill_jsonb_set(p_jsonb jsonb, p_path text[], p_value jsonb)
@@ -518,3 +525,18 @@ BEGIN
 END
 
 $$ LANGUAGE plpgsql;
+
+create or REPLACE function pgr_createtopology_multimodal (p_lineal_groups text, p_puntual_groups text, p_layers text,
+                                                          p_graph_lines_table text, p_graph_lines_schema text, p_tolerance FLOAT,
+                                                          out ip_out_d integer, out p_out_layname text, out p_out_error text)
+  returns setof record as
+  $$
+  declare
+    v_lineal_groups jsonb default '{}'::jsonb;
+    v_puntual_groups jsonb default '{}'::jsonb;
+    v_layers jsonb default '{}'::jsonb;
+  begin
+
+  end;
+
+  $$ LANGUAGE plpgsql
