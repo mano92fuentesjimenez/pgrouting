@@ -1,3 +1,22 @@
+CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_set_key"(
+  "jsonb"          jsonb,
+  "key_to_set"    TEXT,
+  "value_to_set"  jsonb
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  IMMUTABLE
+  STRICT
+AS
+$function$
+SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
+FROM (SELECT *
+      FROM jsonb_each("jsonb")
+      WHERE "key" <> "key_to_set"
+      UNION ALL
+      SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
+$function$;
+
 CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_set_path"(
   "jsonb"          jsonb,
   "key_path"      TEXT[],
@@ -26,25 +45,6 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_set_path"(
            array_upper("key_path", 1) u
     $function$;
 
-CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_set_key"(
-  "jsonb"          jsonb,
-  "key_to_set"    TEXT,
-  "value_to_set"  jsonb
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  IMMUTABLE
-  STRICT
-  AS
-  $function$
-    SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
-    FROM (SELECT *
-          FROM jsonb_each("jsonb")
-          WHERE "key" <> "key_to_set"
-          UNION ALL
-          SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
-  $function$;
-
 create or REPLACE FUNCTION pgr_polyfill_jsonb_set(p_jsonb jsonb, p_path text[], p_value jsonb)
   returns jsonb as
   $$
@@ -57,6 +57,32 @@ create or REPLACE FUNCTION pgr_polyfill_jsonb_set(p_jsonb jsonb, p_path text[], 
     end;
   $$
 language plpgsql;
+
+CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_insert_key"(
+  "jsonb"          jsonb,
+  "key_to_set"    TEXT,
+  "value_to_set"  jsonb
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  IMMUTABLE
+  STRICT
+AS
+$function$
+SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
+FROM (SELECT *
+      FROM jsonb_each("jsonb")
+      WHERE "key" <> "key_to_set"
+      UNION ALL
+      SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
+                              when 'array' then to_json(
+                                  array_append(
+                                      string_to_array(
+                                          regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
+                                        ,',','')
+                                    , "value_to_set"#>>'{}'))::jsonb
+                              else "value_to_set" end )  AS "fields"
+$function$;
 
 CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_insert_path"(
   "jsonb"          jsonb,
@@ -86,31 +112,6 @@ AS
          array_upper("key_path", 1) u
   $function$;
 
-CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_insert_key"(
-  "jsonb"          jsonb,
-  "key_to_set"    TEXT,
-  "value_to_set"  jsonb
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  IMMUTABLE
-  STRICT
-AS
-  $function$
-    SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
-    FROM (SELECT *
-          FROM jsonb_each("jsonb")
-          WHERE "key" <> "key_to_set"
-          UNION ALL
-          SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
-                                  when 'array' then to_json(
-                                      array_append(
-                                          string_to_array(
-                                              regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
-                                            ,',','')
-                                        , "value_to_set"#>>'{}'))::jsonb
-                                  else "value_to_set" end )  AS "fields"
-  $function$;
 
 create or REPLACE FUNCTION pgr_polyfill_jsonb_insert(p_jsonb jsonb, p_path text[], p_value jsonb)
   returns jsonb as
