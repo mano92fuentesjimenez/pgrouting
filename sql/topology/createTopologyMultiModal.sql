@@ -535,8 +535,40 @@ create or REPLACE function pgr_createtopology_multimodal (p_lineal_groups text, 
     v_lineal_groups jsonb default '{}'::jsonb;
     v_puntual_groups jsonb default '{}'::jsonb;
     v_layers jsonb default '{}'::jsonb;
+    v_group int;
+    v_layer_name text;
+    v_point_name text;
+    v_sql text;
+    v_pconn int;
+    v_z int;
   begin
+    for v_layer_name, v_group in EXECUTE p_lineal_groups loop
+      if v_lineal_groups->v_group is null then
+        v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,'{'||v_group||'}','[]'::jsonb);
+      end if;
 
+      v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,'{'||v_group||'}',v_layer_name::jsonb);
+    end loop;
+
+    for v_point_name, v_layer_name in EXECUTE p_puntual_groups loop
+      if v_puntual_groups->v_point_name is null then
+        v_puntual_groups = pgr_polyfill_jsonb_set(v_puntual_groups,'{'||v_point_name ||'}','[]'::jsonb);
+      end if;
+      v_puntual_groups = pgr_polyfill_jsonb_set(v_puntual_groups,'{'||v_point_name ||'}',v_layer_name::jsonb);
+    end loop;
+
+    for v_layer_name, v_sql, v_pconn, v_z in EXECUTE p_graph_lines_table loop
+      v_layers = pgr_polyfill_jsonb_set(v_layers,'{'||v_layer_name||'}',('{'
+        || 'sql:' || v_sql ||
+           ',pconn:'|| v_pconn ||
+           ',zconn:'|| v_z
+        ||
+        '}')::jsonb);
+    end loop;
+
+    raise notice 'lineal_group: %', v_lineal_groups;
+    raise notice 'puntual_group: %', v_puntual_groups;
+    raise notice 'v_layers: %', v_layers;
   end;
 
   $$ LANGUAGE plpgsql
