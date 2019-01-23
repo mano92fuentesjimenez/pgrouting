@@ -42,14 +42,7 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_set_key"(
           FROM jsonb_each("jsonb")
           WHERE "key" <> "key_to_set"
           UNION ALL
-          SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
-                                  when 'array' then to_json(
-                                    array_append(
-                                      string_to_array(
-                                        regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
-                                        ,',','')
-                                      , "value_to_set"#>>'{}'))::jsonb
-                                  else "value_to_set" end )  AS "fields"
+          SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
   $function$;
 
 create or REPLACE FUNCTION pgr_polyfill_jsonb_set(p_jsonb jsonb, p_path text[], p_value jsonb)
@@ -60,6 +53,73 @@ create or REPLACE FUNCTION pgr_polyfill_jsonb_set(p_jsonb jsonb, p_path text[], 
         return pgr_polyfill_json_object_set_path(p_jsonb, p_path, p_value);
       else
         return jsonb_set(p_jsonb, p_path, p_value);
+      end if;
+    end;
+  $$
+language plpgsql;
+
+CREATE OR REPLACE FUNCTION "pgr_polyfill_json_object_insert_path"(
+  "jsonb"          jsonb,
+  "key_path"      TEXT[],
+  "value_to_set"  jsonb
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  IMMUTABLE
+  STRICT
+AS
+  $function$
+    SELECT CASE COALESCE(array_length("key_path", 1), 0)
+             WHEN 0 THEN "value_to_set"
+             WHEN 1 THEN "pgr_polyfill_jsonb_object_insert_key"("jsonb", "key_path"[l], "value_to_set")
+             ELSE "pgr_polyfill_jsonb_object_insert_key"(
+                 "jsonb",
+                 "key_path"[l],
+                 "pgr_polyfill_json_object_insert_path"(
+                     COALESCE(NULLIF(("jsonb" -> "key_path"[l])::text, 'null'), '{}')::jsonb,
+                     "key_path"[l+1:u],
+                     "value_to_set"
+                   )
+               )
+             END
+    FROM array_lower("key_path", 1) l,
+         array_upper("key_path", 1) u
+  $function$;
+
+CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_insert_key"(
+  "jsonb"          jsonb,
+  "key_to_set"    TEXT,
+  "value_to_set"  jsonb
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  IMMUTABLE
+  STRICT
+AS
+  $function$
+    SELECT concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
+    FROM (SELECT *
+          FROM jsonb_each("jsonb")
+          WHERE "key" <> "key_to_set"
+          UNION ALL
+          SELECT "key_to_set",  case jsonb_typeof("jsonb"-> key_to_set)
+                                  when 'array' then to_json(
+                                      array_append(
+                                          string_to_array(
+                                              regexp_replace("jsonb"->> key_to_set,'[\[\]]','','g')
+                                            ,',','')
+                                        , "value_to_set"#>>'{}'))::jsonb
+                                  else "value_to_set" end )  AS "fields"
+  $function$;
+
+create or REPLACE FUNCTION pgr_polyfill_jsonb_insert(p_jsonb jsonb, p_path text[], p_value jsonb)
+  returns jsonb as
+  $$
+    BEGIN
+      if current_setting('server_version_num')::integer < 90500 then
+        return pgr_polyfill_json_object_insert_path(p_jsonb, p_path, p_value);
+      else
+        return jsonb_insert(p_jsonb, p_path, p_value);
       end if;
     end;
   $$
@@ -544,25 +604,24 @@ create or REPLACE function pgr_createtopology_multimodal (p_lineal_groups text, 
   begin
     for v_layer_name, v_group in EXECUTE p_lineal_groups loop
       if v_lineal_groups->v_group is null then
-        v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,'{'||v_group||'}','[]'::jsonb);
+        v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,('{'||v_group||'}')::text[],'[]'::jsonb);
       end if;
 
-      v_lineal_groups = pgr_polyfill_jsonb_set(v_lineal_groups,'{'||v_group||'}',v_layer_name::jsonb);
+      v_lineal_groups = pgr_polyfill_jsonb_insert(v_lineal_groups,('{'||v_group||'}')::text[],('"'||v_layer_name||'"')::jsonb);
     end loop;
 
     for v_point_name, v_layer_name in EXECUTE p_puntual_groups loop
       if v_puntual_groups->v_point_name is null then
-        v_puntual_groups = pgr_polyfill_jsonb_set(v_puntual_groups,'{'||v_point_name ||'}','[]'::jsonb);
+        v_puntual_groups = pgr_polyfill_jsonb_set(v_puntual_groups,('{'||v_point_name ||'}'):: text[],'[]'::jsonb);
       end if;
-      v_puntual_groups = pgr_polyfill_jsonb_set(v_puntual_groups,'{'||v_point_name ||'}',v_layer_name::jsonb);
+      v_puntual_groups = pgr_polyfill_jsonb_insert(v_puntual_groups,('{'||v_point_name ||'}')::text[],('"'||v_layer_name||'"')::jsonb);
     end loop;
 
-    for v_layer_name, v_sql, v_pconn, v_z in EXECUTE p_graph_lines_table loop
-      v_layers = pgr_polyfill_jsonb_set(v_layers,'{'||v_layer_name||'}',('{'
-        || 'sql:' || v_sql ||
-           ',pconn:'|| v_pconn ||
-           ',zconn:'|| v_z
-        ||
+    for v_layer_name, v_sql, v_pconn, v_z in EXECUTE p_layers loop
+      v_layers = pgr_polyfill_jsonb_set(v_layers,('{'||v_layer_name||'}')::text[],('{'
+        || '"sql"   :"'|| v_sql   || '"' ||
+           ',"pconn":"'|| v_pconn || '"' ||
+           ',"zconn":"'|| v_z     || '"' ||
         '}')::jsonb);
     end loop;
 
