@@ -69,7 +69,7 @@ CREATE OR REPLACE FUNCTION "pgr_polyfill_jsonb_object_insert_key"(
   STRICT
 AS
 $function$
-SELECT case jsonb_typeof("jsonb"-> key_to_set)
+SELECT case jsonb_typeof("jsonb")
        when 'object' then
          (select concat('{', string_agg(to_json("key") || ':' || "value"::text, ','), '}')::jsonb
           FROM (SELECT *
@@ -79,7 +79,7 @@ SELECT case jsonb_typeof("jsonb"-> key_to_set)
                 SELECT "key_to_set", to_json("value_to_set")::jsonb) AS "fields"
                )
        when 'array' then
-         (SELECT concat('[',regexp_replace("jsonb" ->> key_to_set, '[\[\]]', '', 'g'),"value_to_set" #>> '{}',']')::jsonb)
+         (SELECT concat('[',regexp_replace("jsonb"#>>'{}', '[\[\]]', '', 'g'),',',"value_to_set" #>> '{}',']')::jsonb)
        end
 $function$;
 
