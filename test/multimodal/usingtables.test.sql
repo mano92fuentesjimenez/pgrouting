@@ -1,25 +1,25 @@
 --A layer is a table with geometries
-drop table if exists lineal_groups;
-create table lineal_groups(
-  layer_name text,
-  group_id int -- all lineal layers in the same group will connect through points exposed.
+drop table if exists grupos_lineales;
+create table grupos_lineales(
+  nombre_capa text,
+  identificador_grupo int -- all lineal layers in the same group will connect through points exposed.
                -- Which point from layer is exposed depends on connectivity policy defined on layer table and point table
                -- Group 1 could be main streets layer, secondary streets layer
                -- Group 2 could be Aerial streets layer (the one that planes uses)
 );
-drop table if exists point_groups;
-create table point_groups(
+drop table if exists grupos_puntuales;
+create table grupos_puntuales(
   --A point layer will join two or more lineal layer from different groups. They are transference points, like a bus stop could be, or an airport
   --It is defined that a point layer join lineal layer and not groups, it could be groups, but not.
-  point_layer_name text,
-  lineal_layer_name text
+  nombre_capa_puntual text,
+  nombre_capa_lineal text
 );
 
-drop table if exists layers_info;
-create table layers_info(
-  layer_name text,
-  layer text,  -- Sql to extract a layer table as specified by 'layer' table
-  conn_policy integer, -- It just takes 0 or 1 values and depending of which label this record represents, it takes meaning
+drop table if exists informacion_capas;
+create table informacion_capas(
+  nombre_capa text,
+  capa text,  -- Sql to extract a layer table as specified by 'layer' table
+  politica_conectividad integer, -- It just takes 0 or 1 values and depending of which label this record represents, it takes meaning
                        -- If this is a lineal layer
                        -- 0 to expose just start and ending point from geometry.
                        -- 1 to expose all points inside the geometry, so there could be a graph point here if another exposed
@@ -34,17 +34,17 @@ create table layers_info(
              -- 1 will get z from geometry
              -- 2 will get z from z_start column, and z_end column. With this option only edges point will have z
 );
-drop table if exists lineal_layer;
-create table lineal_layer (
-  id integer,
-  the_geom geometry,
-  z_start float,
+drop table if exists capa_lineal;
+create table capa_lineal (
+  identificador integer,
+  geometria geometry,
+  z_inicial float,
   z_end float
 );
-drop table if exists point_layer;
-create table point_layer (
-  id integer,
-  the_geom geometry,
+drop table if exists capa_puntual;
+create table capa_puntual (
+  identificador integer,
+  geometria geometry,
   z float
 );
 
@@ -98,74 +98,74 @@ end;
 $$ LANGUAGE plpgsql;
 
 --adding test 2lines-1points-1 z-0   from pgTapTest
-drop table if exists test_table_l1;
-create table test_table_l1(
-  the_geom geometry('linestringz',4326),
-  id integer primary key,
-  z_start float default 0,
-  z_end float default 0
+drop table if exists tabla_pruebas_l1;
+create table tabla_pruebas_l1(
+  geometria geometry('linestringz',4326),
+  identificador integer primary key,
+  z_inicial float default 0,
+  z_final float default 0
 );
 
-insert into test_table_l1 VALUES ('SRID=4326;linestring(5 0 0,10 10 0, 13 10 0, 15 10 0)',1);
-insert into test_table_l1 VALUES ('SRID=4326;linestring(0 0 0, 10 10 0)',2);
-insert into test_table_l1 VALUES ('SRID=4326;linestring(10 10 0, 10 0 0)',3);
-insert into test_table_l1 VALUES ('SRID=4326;linestring(8 0 0, 10 10 0)',4);
-insert into test_table_l1 VALUES ('SRID=4326;linestring(8 0 0, 8 10 0, 10 10 0)', 5);
-insert into test_table_l1 values ('SRID=4326;linestring(7 12 0, 13 10 0, 14 8 0)', 6);
+insert into tabla_pruebas_l1 VALUES ('SRID=4326;linestring(5 0 0,10 10 0, 13 10 0, 15 10 0)',1);
+insert into tabla_pruebas_l1 VALUES ('SRID=4326;linestring(0 0 0, 10 10 0)',2);
+insert into tabla_pruebas_l1 VALUES ('SRID=4326;linestring(10 10 0, 10 0 0)',3);
+insert into tabla_pruebas_l1 VALUES ('SRID=4326;linestring(8 0 0, 10 10 0)',4);
+insert into tabla_pruebas_l1 VALUES ('SRID=4326;linestring(8 0 0, 8 10 0, 10 10 0)', 5);
+insert into tabla_pruebas_l1 values ('SRID=4326;linestring(7 12 0, 13 10 0, 14 8 0)', 6);
 
 --for test z
-insert into test_table_l1 values ('SRID=4326;linestring(15 14 50, 15 10 50, 15 8 50)', 7); --overpass over point(15 10 0)
-insert into test_table_l1 values ('SRID=4326;linestring(15 16 35, 15 14 50)', 8); -- z connects with edge points
-insert into test_table_l1 values ('SRID=4326;linestring(13 16 35, 15 14 50, 13 14 50)', 9); -- z connects with interior points
+insert into tabla_pruebas_l1 values ('SRID=4326;linestring(15 14 50, 15 10 50, 15 8 50)', 7); --overpass over point(15 10 0)
+insert into tabla_pruebas_l1 values ('SRID=4326;linestring(15 16 35, 15 14 50)', 8); -- z connects with edge points
+insert into tabla_pruebas_l1 values ('SRID=4326;linestring(13 16 35, 15 14 50, 13 14 50)', 9); -- z connects with interior points
 
-drop table if exists test_table_l2;
-create table test_table_l2(
-  the_geom geometry('linestringz',4326),
-  id integer primary key,
-  z_start float default 0,
-  z_end float default 0
+drop table if exists tabla_pruebas_l2;
+create table tabla_pruebas_l2(
+  geometria geometry('linestringz',4326),
+  identificador integer primary key,
+  z_inicial float default 0,
+  z_final float default 0
 );
 
-insert into test_table_l2 values ('SRID=4326;linestring(13 18 35, 13 16 35, 7 12 0)', 1);
-insert into test_table_l2 values ('SRID=4326;linestring(15 18 0, 15 16 35, 17 18 0)', 2);
+insert into tabla_pruebas_l2 values ('SRID=4326;linestring(13 18 35, 13 16 35, 7 12 0)', 1);
+insert into tabla_pruebas_l2 values ('SRID=4326;linestring(15 18 0, 15 16 35, 17 18 0)', 2);
 
-drop table if exists test_table_p1;
-create TABLE test_table_p1(
-  the_geom geometry('pointz',4326),
-  id integer primary key,
+drop table if exists tabla_pruebas_p1;
+create TABLE tabla_pruebas_p1(
+  geometria geometry('pointz',4326),
+  identificador integer primary key,
   z float default 0
 
 );
 
-insert into test_table_p1 values('SRID=4326;point(10 10 0)',1);
-insert into test_table_p1 values('SRID=4326;point(10 0 0)',2);
-insert into test_table_p1 values('SRID=4326;point(8 10 0)',3);
-insert into test_table_p1 values('SRID=4326;point(8 0 0)',4);
-insert into test_table_p1 values('SRID=4326;point(5 0 0)',5);
-insert into test_table_p1 values('SRID=4326;point(0 0 0)',6);
-insert into test_table_p1 values('SRID=4326;point(7 12 0)',7);
+insert into tabla_pruebas_p1 values('SRID=4326;point(10 10 0)',1);
+insert into tabla_pruebas_p1 values('SRID=4326;point(10 0 0)',2);
+insert into tabla_pruebas_p1 values('SRID=4326;point(8 10 0)',3);
+insert into tabla_pruebas_p1 values('SRID=4326;point(8 0 0)',4);
+insert into tabla_pruebas_p1 values('SRID=4326;point(5 0 0)',5);
+insert into tabla_pruebas_p1 values('SRID=4326;point(0 0 0)',6);
+insert into tabla_pruebas_p1 values('SRID=4326;point(7 12 0)',7);
 
 --for test z
-insert into test_table_p1 values('SRID=4326;point(15 10 0)',8);
-insert into test_table_p1 values('SRID=4326;point(13 14 50)',9);  --edge point  of layer 2
-insert into test_table_p1 values('SRID=4326;point(15 16 35)',10); --interior point of layer 2
-insert into test_table_p1 values('SRID=4326;point(15 8 50)',11);
+insert into tabla_pruebas_p1 values('SRID=4326;point(15 10 0)',8);
+insert into tabla_pruebas_p1 values('SRID=4326;point(13 14 50)',9);  --edge point  of layer 2
+insert into tabla_pruebas_p1 values('SRID=4326;point(15 16 35)',10); --interior point of layer 2
+insert into tabla_pruebas_p1 values('SRID=4326;point(15 8 50)',11);
 
 --for test connectivity with 2nd layer
-insert into test_table_p1 values('SRID=4326;point(14 8 0)',12);
-insert into test_table_p1 values('SRID=4326;point(13 18 35)',13);
-insert into test_table_p1 values('SRID=4326;point(15 18 0)',14);
+insert into tabla_pruebas_p1 values('SRID=4326;point(14 8 0)',12);
+insert into tabla_pruebas_p1 values('SRID=4326;point(13 18 35)',13);
+insert into tabla_pruebas_p1 values('SRID=4326;point(15 18 0)',14);
 
-insert into lineal_groups values('linealLayer-1',1),('linealLayer-2',2);
-insert into point_groups values('pointLayer-1','linealLayer-1'),('pointLayer-1','linealLayer-2');
-insert into layers_info values('linealLayer-1','select id, the_geom, z_start, z_end from test_table_l1',1,0),
-                              ('linealLayer-2','select id, the_geom, z_start, z_end from test_table_l2',1,0),
-                              ('pointLayer-1','select id, the_geom, z from test_table_p1',1,0);
+insert into grupos_lineales values('capaLineal-1',1),('capaLineal-2',2);
+insert into grupos_puntuales values('capaPuntual-1','capaLineal-1'),('capaPuntual-1','capaLineal-2');
+insert into informacion_capas values('capaLineal-1','select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l1',1,0),
+                              ('capaLineal-2','select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l2',1,0),
+                              ('capaPuntual-1','select identificador as id, geometria as the_geom, z from tabla_pruebas_p1',1,0);
 
 SELECT count(*) from  pgr_wrap_createtopology_multimodal(
   'select * from lineal_groups',
-  'select * from point_groups',
-  'select * from layers_info',
+  'select * from grupos_puntuales',
+  'select * from informacion_capas',
   'graph_lines',
   'public',
   0.000001
