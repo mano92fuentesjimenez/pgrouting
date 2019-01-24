@@ -1,0 +1,365 @@
+  BEGIN;
+  BEGIN
+  SET client_min_messages TO NOTICE;
+  SET
+  drop table if exists grupos_lineales;
+  NOTICE:  table "grupos_lineales" does not exist, skipping
+  DROP TABLE
+  create table grupos_lineales(
+    nombre_capa text,
+    identificador_grupo int 
+                 
+                 
+                 
+  );
+  CREATE TABLE
+  drop table if exists grupos_puntuales;
+  NOTICE:  table "grupos_puntuales" does not exist, skipping
+  DROP TABLE
+  create table grupos_puntuales(
+    
+    
+    nombre_capa_puntual text,
+    nombre_capa_lineal text
+  );
+  CREATE TABLE
+  drop table if exists informacion_capas;
+  NOTICE:  table "informacion_capas" does not exist, skipping
+  DROP TABLE
+  create table informacion_capas(
+    nombre_capa text,
+    capa text,  
+    politica_conectividad integer, 
+                         
+                         
+                         
+                               
+                         
+                         
+                         
+                              
+                              
+    z integer  
+               
+               
+               
+  );
+  CREATE TABLE
+  drop table if exists capa_lineal;
+  NOTICE:  table "capa_lineal" does not exist, skipping
+  DROP TABLE
+  create table capa_lineal (
+    identificador integer,
+    geometria geometry,
+    z_inicial float,
+    z_end float
+  );
+  CREATE TABLE
+  drop table if exists capa_puntual;
+  NOTICE:  table "capa_puntual" does not exist, skipping
+  DROP TABLE
+  create table capa_puntual (
+    identificador integer,
+    geometria geometry,
+    z float
+  );
+  CREATE TABLE
+  create or REPLACE function pgr_wrap_createtopology_multimodal (p_lineal_groups     text, p_puntual_groups     text, p_layers    text,
+                                                            p_graph_lines_table text, p_graph_lines_schema text, p_tolerance FLOAT,
+                                                            out ip_out_d integer, out p_out_layname text, out p_out_error text)
+    returns setof record as
+  $$
+  declare
+    v_lineal_groups jsonb default  '{} '::jsonb;
+    v_puntual_groups jsonb default  '{} '::jsonb;
+    v_layers jsonb default  '{} '::jsonb;
+    v_group int;
+    v_layer_name text;
+    v_point_name text;
+    v_sql text;
+    v_pconn int;
+    v_z int;
+  begin
+    raise notice  'here ';
+    for v_layer_name, v_group in EXECUTE p_lineal_groups loop
+      if v_lineal_groups-> v_group is null then
+        v_lineal_groups = jsonb_set(v_lineal_groups,( '{ '||v_group|| '} ')::text[], '[] '::jsonb);
+      end if;
+  
+      v_lineal_groups = jsonb_insert(v_lineal_groups,( '{ '||v_group|| ',0} ')::text[],( '" '||v_layer_name|| '" ')::jsonb);
+    end loop;
+  
+    for v_point_name, v_layer_name in EXECUTE p_puntual_groups loop
+      if v_puntual_groups-> v_point_name is null then
+        v_puntual_groups = jsonb_set(v_puntual_groups,( '{ '||v_point_name || '} '):: text[], '[] '::jsonb);
+      end if;
+      v_puntual_groups = jsonb_insert(v_puntual_groups,( '{ '||v_point_name || ',0} ')::text[],( '" '||v_layer_name|| '" ')::jsonb);
+    end loop;
+  
+    for v_layer_name, v_sql, v_pconn, v_z in EXECUTE p_layers loop
+      v_layers = jsonb_set(v_layers,( '{ '||v_layer_name|| '} ')::text[],( '{ '
+        ||  '"sql"   :" '|| v_sql   ||  '" ' ||
+            ',"pconn":" '|| v_pconn ||  '" ' ||
+            ',"zconn":" '|| v_z     ||  '" ' ||
+            '} ')::jsonb);
+    end loop;
+  
+    raise notice  'lineal_group: % ', v_lineal_groups;
+    raise notice  'puntual_group: % ', v_puntual_groups;
+    raise notice  'v_layers: % ', v_layers;
+  
+    return query select * from pgr_createtopology_multimodal(v_lineal_groups, v_puntual_groups, v_layers, p_graph_lines_table, p_graph_lines_schema, p_tolerance);
+  end;
+  
+  $$ LANGUAGE plpgsql;
+  CREATE FUNCTION
+  drop table if exists tabla_pruebas_l1;
+  NOTICE:  table "tabla_pruebas_l1" does not exist, skipping
+  DROP TABLE
+  create table tabla_pruebas_l1(
+    geometria geometry( 'linestringz ',4326),
+    identificador integer primary key,
+    z_inicial float default 0,
+    z_final float default 0
+  );
+  CREATE TABLE
+  insert into tabla_pruebas_l1 VALUES ( 'SRID=4326;linestring(5 0 0,10 10 0, 13 10 0, 15 10 0) ',1);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 VALUES ( 'SRID=4326;linestring(0 0 0, 10 10 0) ',2);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 VALUES ( 'SRID=4326;linestring(10 10 0, 10 0 0) ',3);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 VALUES ( 'SRID=4326;linestring(8 0 0, 10 10 0) ',4);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 VALUES ( 'SRID=4326;linestring(8 0 0, 8 10 0, 10 10 0) ', 5);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 values ( 'SRID=4326;linestring(7 12 0, 13 10 0, 14 8 0) ', 6);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 values ( 'SRID=4326;linestring(15 14 50, 15 10 50, 15 8 50) ', 7);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 values ( 'SRID=4326;linestring(15 16 35, 15 14 50) ', 8);
+  INSERT 0 1
+  insert into tabla_pruebas_l1 values ( 'SRID=4326;linestring(13 16 35, 15 14 50, 13 14 50) ', 9);
+  INSERT 0 1
+  drop table if exists tabla_pruebas_l2;
+  NOTICE:  table "tabla_pruebas_l2" does not exist, skipping
+  DROP TABLE
+  create table tabla_pruebas_l2(
+    geometria geometry( 'linestringz ',4326),
+    identificador integer primary key,
+    z_inicial float default 0,
+    z_final float default 0
+  );
+  CREATE TABLE
+  insert into tabla_pruebas_l2 values ( 'SRID=4326;linestring(13 18 35, 13 16 35, 7 12 0) ', 1);
+  INSERT 0 1
+  insert into tabla_pruebas_l2 values ( 'SRID=4326;linestring(15 18 0, 15 16 35, 17 18 0) ', 2);
+  INSERT 0 1
+  drop table if exists tabla_pruebas_p1;
+  NOTICE:  table "tabla_pruebas_p1" does not exist, skipping
+  DROP TABLE
+  create TABLE tabla_pruebas_p1(
+    geometria geometry( 'pointz ',4326),
+    identificador integer primary key,
+    z float default 0
+  );
+  CREATE TABLE
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(10 10 0) ',1);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(10 0 0) ',2);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(8 10 0) ',3);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(8 0 0) ',4);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(5 0 0) ',5);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(0 0 0) ',6);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(7 12 0) ',7);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(15 10 0) ',8);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(13 14 50) ',9);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(15 16 35) ',10);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(15 8 50) ',11);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(14 8 0) ',12);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(13 18 35) ',13);
+  INSERT 0 1
+  insert into tabla_pruebas_p1 values( 'SRID=4326;point(15 18 0) ',14);
+  INSERT 0 1
+  insert into grupos_lineales values( 'capaLineal-1 ',1),( 'capaLineal-2 ',2);
+  INSERT 0 2
+  insert into grupos_puntuales values( 'capaPuntual-1 ', 'capaLineal-1 '),( 'capaPuntual-1 ', 'capaLineal-2 ');
+  INSERT 0 2
+  insert into informacion_capas values( 'capaLineal-1 ', 'select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l1 ',1,0),
+                                ( 'capaLineal-2 ', 'select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l2 ',1,0),
+                                ( 'capaPuntual-1 ', 'select identificador as id, geometria as the_geom, z from tabla_pruebas_p1 ',1,0);
+  INSERT 0 3
+  SELECT count(*) from  pgr_wrap_createtopology_multimodal(
+     'select * from grupos_lineales ',
+     'select * from grupos_puntuales ',
+     'select * from informacion_capas ',
+     'graph_lines ',
+     'public ',
+    0.000001
+  );
+  NOTICE:  here
+  NOTICE:  lineal_group: {"1": ["capaLineal-1"], "2": ["capaLineal-2"]}
+  NOTICE:  puntual_group: {"capaPuntual-1": ["capaLineal-2", "capaLineal-1"]}
+  NOTICE:  v_layers: {"capaLineal-1": {"sql": "select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l1", "pconn": "1", "zconn": "0"}, "capaLineal-2": {"sql": "select identificador as id, geometria as the_geom, z_inicial as z_start, z_final as z_end from tabla_pruebas_l2", "pconn": "1", "zconn": "0"}, "capaPuntual-1": {"sql": "select identificador as id, geometria as the_geom, z from tabla_pruebas_p1", "pconn": "1", "zconn": "0"}}
+  NOTICE:  table "pgr_create_top_graph_ptos" does not exist, skipping
+  NOTICE:  table "graph_lines_pt" does not exist, skipping
+  NOTICE:  table "graph_lines" does not exist, skipping
+  NOTICE:  POINT Z (10 10 0) - 0 - 1
+  NOTICE:  POINT Z (10 0 0) - 0 - 2
+  NOTICE:  POINT Z (8 10 0) - 0 - 3
+  NOTICE:  POINT Z (8 0 0) - 0 - 4
+  NOTICE:  POINT Z (5 0 0) - 0 - 5
+  NOTICE:  POINT Z (0 0 0) - 0 - 6
+  NOTICE:  POINT Z (7 12 0) - 0 - 7
+  NOTICE:  POINT Z (15 10 0) - 0 - 8
+  NOTICE:  POINT Z (13 14 50) - 0 - 9
+  NOTICE:  POINT Z (15 16 35) - 0 - 10
+  NOTICE:  POINT Z (15 8 50) - 0 - 11
+  NOTICE:  POINT Z (14 8 0) - 0 - 12
+  NOTICE:  POINT Z (13 18 35) - 0 - 13
+  NOTICE:  POINT Z (15 18 0) - 0 - 14
+   count 
+  -------
+       0
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_l ' ||
+      'ines ',
+     (select id from graph_lines_pt where id_geom =6 ),
+     (select id from graph_lines_pt where id_geom =4 )
+  );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =6 ),
+     (select id from graph_lines_pt where id_geom =2 )
+  );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =6 ),
+     (select id from graph_lines_pt where id_geom =5 )
+   );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from graph_lines_pt where id_geom = 3;
+   count 
+  -------
+       1
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =2 ),
+     (select id from graph_lines_pt where id_geom =3 )
+   );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =7 ),
+     (select id from graph_lines_pt where id_geom =5 )
+   );
+   count 
+  -------
+       4
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =7 ),
+     (select id from graph_lines_pt where id_geom =6 )
+   );
+   count 
+  -------
+       4
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =11 ),
+     (select id from graph_lines_pt where id_geom =1 )
+  );
+   count 
+  -------
+       0
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =11 ),
+     (select id from graph_lines_pt where id_geom =9 )
+   );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =10 ),
+     (select id from graph_lines_pt where id_geom =9 )
+   );
+   count 
+  -------
+       3
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =13 ),
+     (select id from graph_lines_pt where id_geom =12 )
+   );
+   count 
+  -------
+       4
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =13 ),
+     (select id from graph_lines_pt where id_geom =9 )
+   );
+   count 
+  -------
+       0
+  (1 row)
+  
+  select count(*) from pgr_dijkstra(
+      'select id, source, target, 0 as cost, 0 as reverse_cost from graph_lines ',
+     (select id from graph_lines_pt where id_geom =14 ),
+     (select id from graph_lines_pt where id_geom =9 )
+  );
+   count 
+  -------
+       4
+  (1 row)
+  
+  ROLLBACK;
+  ROLLBACK

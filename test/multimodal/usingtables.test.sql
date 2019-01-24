@@ -163,7 +163,7 @@ insert into informacion_capas values('capaLineal-1','select identificador as id,
                               ('capaPuntual-1','select identificador as id, geometria as the_geom, z from tabla_pruebas_p1',1,0);
 
 SELECT count(*) from  pgr_wrap_createtopology_multimodal(
-  'select * from lineal_groups',
+  'select * from grupos_lineales',
   'select * from grupos_puntuales',
   'select * from informacion_capas',
   'graph_lines',
